@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import socket
 import threading
 import sys
@@ -77,18 +78,24 @@ def client_handler(conn, addr):
                 GPIO.output(relayPin, GPIO.LOW)
 
 
-    
-
-def start(ADDR):
-    HOST, PORT = ADDR
-    print(f"[MAIN] Hosting on: {HOST}:{PORT}")
-
+def initGPIO():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setup(allPins, GPIO.OUT)
     GPIO.output(allPins, GPIO.LOW)
     GPIO.output(ledPins[0], GPIO.HIGH)
     ledState[0] = True
+    
 
+def cleanGPIO():
+    GPIO.output(allPins, GPIO.LOW)
+    GPIO.cleanup()
+
+def start(ADDR):
+    HOST, PORT = ADDR
+    print(f"[MAIN] Hosting on: {HOST}:{PORT}")
+
+    initGPIO()
+    
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(ADDR)
@@ -104,8 +111,7 @@ def start(ADDR):
         except KeyboardInterrupt:
             print("[MAIN] Interrupted...Closing")
             s.close()
-            GPIO.output(allPins, GPIO.LOW)
-            GPIO.cleanup()
+            cleanGPIO()
             break
         
 
