@@ -7,26 +7,43 @@ import threading
 import sys
 import LCD1602
 import RPi.GPIO as GPIO
+import time
 from w1thermsensor import W1ThermSensor
+from classes import *
+from datetime import datetime
+from datetime import timedelta
 
 DEF_PORT = 5050
 DEF_HOST = socket.gethostbyname(socket.gethostname())
 DEF_ADDR = (DEF_HOST, DEF_PORT)
 DOLOGGING = True
 
-allPins = (11, 12, 13, 15)
-
-backlight = True
 tSensor = None
+
+config = None
+
+def configure():
+    global config
+    config = Configuration()
+    config.addRelay(Relay(11, "Red"))
+    config.addRelay(Relay(12, "Green"))
+    config.addRelay(Relay(13, "Blue"))
+    config.addRelay(Relay(15, "Yellow"))
+
+def startRelayThreads():
+    for i in range(len(config.getPins())):
+        thread = threading.Thread(target=relayHandler,args=(i,))
+        thread.daemon = True
+        thread.start()
 
 def log(text):
     if DOLOGGING:
         print(text)
 
-def RECV(conn):
+def recvString(conn):
     header = conn.recv(2)
     msgLen = int.from_bytes(header, byteorder='big')
-    msg = conn.recv(msgLen)
+    msg = conn.recv(msgLen).decode('utf-8')
     return msg
 
 def SEND(conn, msg):
@@ -34,55 +51,82 @@ def SEND(conn, msg):
     conn.send(len(toSend).to_bytes(2, byteorder='big'))
     conn.send(toSend)
 
-def client_handler(conn, addr):
-    global tSensor
-    threadName = threading.currentThread().getName()
-    log(f"[{threadName}] Connection from: {addr}")
+def getTimeString():
+    t = datetime.now()
+    current_time = t.strftime("%I:%M %p")
+    return str(current_time)
+
+def relayHandler(idPos):
+    pin = config.getRelay(idPos).pin
+
     while True:
-        command = RECV(conn).decode("utf-8")
-        log(f"[{threadName}] COMMAND: '{command}'")
+        timeOff = config.getRelayOffTime(idPos)
+        timeCurrent = datetime.now()
+        if timeOff == -1:
+            GPIO.output(pin, GPIO.LOW)
+        elif timeCurrent > timeOff:
+            GPIO.output(pin, GPIO.HIGH)
+        elif timeCurrent < timeOff:
+            GPIO.output(pin, GPIO.LOW)
+        else:
+            GPIO.output(pin, GPIO.HIGH)
+
+        time.sleep(0.2)
+
+def clientHandler(conn, addr):
+    threadName = threading.currentThread().getName()
+    log(f"[{threadName} : {getTimeString()}] Connection from: {addr}")
+    
+    while True:
+        command = recvString(conn)
+        log(f"[{threadName} : {getTimeString()}] COMMAND: '{command}'")
 
         if command == "DISCONNECT":
-            log(f"[{threadName}] Close...")
+            log(f"[{threadName} : {getTimeString()}] Close...")
             conn.close()
-            break;
+            break
 
         elif command == "SETRELAY":
-            relayNum = int(RECV(conn).decode("utf-8"))
-            setTo = int(RECV(conn).decode("utf-8"))
-            log(f"[{threadName}] \tRelay #{relayNum}")
-            log(f"[{threadName}] \tSet to: {setTo}")
+            relayNum = int(recvString(conn))
+            setTo = int(recvString(conn))
+            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} Set to: {setTo}")
 
-            if setTo:
-                GPIO.output(allPins[relayNum], GPIO.LOW)
-            else:
-                GPIO.output(allPins[relayNum], GPIO.HIGH)
+            config.setRelayState(relayNum, setTo)
+
+        elif command == "TIMERELAY":
+            relayNum = int(recvString(conn))
+            seconds = int(recvString(conn))
+            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} On for: {seconds} seconds")
+
+            config.setRelayTimer(relayNum, seconds)
 
         elif command == "GETTEMP":
             temp = tSensor.get_temperature()
-            log(f"[{threadName}] \tCurrent Temperature: {temp}°C")
+            log(f"[{threadName} : {getTimeString()}] \tCurrent Temperature: {temp}°C")
             SEND(conn, str(temp))
 
         elif command == "":
             conn.close()
 
-def initGPIO():
+def initGPIO(pins):
     global tSensor
     GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(allPins, GPIO.OUT)
-    GPIO.output(allPins, GPIO.HIGH)
+    GPIO.setup(pins, GPIO.OUT)
+    GPIO.output(pins, GPIO.HIGH)
     tSensor = W1ThermSensor()  
 
-def cleanGPIO():
-    GPIO.output(allPins, GPIO.HIGH)
+def cleanGPIO(pins):
+    GPIO.output(pins, GPIO.HIGH)
     GPIO.cleanup()
 
 def start(ADDR):
     HOST, PORT = ADDR
     log(f"[MAIN] Hosting on: {HOST}:{PORT}")
 
-    initGPIO()
-    
+    configure()
+    initGPIO(config.getPins())
+    startRelayThreads()
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(ADDR)
@@ -93,12 +137,13 @@ def start(ADDR):
         try:
             conn, addr = s.accept()
             log("[MAIN] Accepted Connection...")
-            thread = threading.Thread(target=client_handler, args=(conn, addr))
+            thread = threading.Thread(name=f"{addr[0]}:{addr[1]}",target=clientHandler, args=(conn, addr))
+
             thread.start()
         except KeyboardInterrupt:
             log("[MAIN] Interrupted...Closing")
             s.close()
-            cleanGPIO()
+            cleanGPIO(config.getPins())
             break
         
 
