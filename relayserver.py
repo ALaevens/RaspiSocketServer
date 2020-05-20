@@ -12,6 +12,7 @@ from w1thermsensor import W1ThermSensor
 from classes import *
 from datetime import datetime
 from datetime import timedelta
+from database import *
 
 DEF_PORT = 5050
 DEF_HOST = socket.gethostbyname(socket.gethostname())
@@ -137,9 +138,12 @@ def start(ADDR):
         try:
             conn, addr = s.accept()
             log("[MAIN] Accepted Connection...")
-            thread = threading.Thread(name=f"{addr[0]}:{addr[1]}",target=clientHandler, args=(conn, addr))
-
+            #thread = threading.Thread(name=f"{addr[0]}:{addr[1]}",target=clientHandler, args=(conn, addr))
+            thread = threading.Thread(target=clientHandler, args=(conn, addr))
             thread.start()
+
+            count = updateConnections(addr[0])
+            log(f"[MAIN] {addr[0]} has connected {count} time(s)")
         except KeyboardInterrupt:
             log("[MAIN] Interrupted...Closing")
             s.close()
