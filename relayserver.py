@@ -137,13 +137,16 @@ def start(ADDR):
     while True:
         try:
             conn, addr = s.accept()
-            log("[MAIN] Accepted Connection...")
-            #thread = threading.Thread(name=f"{addr[0]}:{addr[1]}",target=clientHandler, args=(conn, addr))
-            thread = threading.Thread(target=clientHandler, args=(conn, addr))
-            thread.start()
+            count, country = updateConnections(addr[0])
+            log(f"[MAIN] New Connection: {addr[0]}, from {country}, has connected {count} time(s)")
 
-            count = updateConnections(addr[0])
-            log(f"[MAIN] {addr[0]} has connected {count} time(s)")
+            if country in ["Local", "Canada"]:
+                log("[Main] Accepting Connection")
+                thread = threading.Thread(target=clientHandler, args=(conn, addr))
+                thread.start()
+            else:
+                log("[MAIN] Refusing connection")
+                conn.close()
         except KeyboardInterrupt:
             log("[MAIN] Interrupted...Closing")
             s.close()
