@@ -62,12 +62,14 @@ def relayHandler(idPos):
 
     while True:
         timeOff = config.getRelayOffTime(idPos)
+        timeOn = config.getRelayOnTime(idPos)
         timeCurrent = datetime.now()
-        if timeOff == -1:
+
+        if timeOff == -1:               # manual On
             GPIO.output(pin, GPIO.LOW)
-        elif timeCurrent > timeOff:
+        elif timeCurrent >= timeOff:
             GPIO.output(pin, GPIO.HIGH)
-        elif timeCurrent < timeOff:
+        elif timeCurrent < timeOff and timeCurrent >= timeOn:
             GPIO.output(pin, GPIO.LOW)
         else:
             GPIO.output(pin, GPIO.HIGH)
@@ -96,10 +98,11 @@ def clientHandler(conn, addr):
 
         elif command == "TIMERELAY":
             relayNum = int(recvString(conn))
-            seconds = int(recvString(conn))
-            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} On for: {seconds} seconds")
+            duration = int(recvString(conn))
+            delay = int(recvString(conn))
+            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} On for: {duration} seconds after {delay} seconds")
 
-            config.setRelayTimer(relayNum, seconds)
+            config.setRelayTimer(relayNum, duration, delay)
 
         elif command == "GETTEMP":
             temp = tSensor.get_temperature()

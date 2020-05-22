@@ -6,7 +6,8 @@ class Relay(object):
 	def __init__(self, pin, name):
 		self.name = name
 		self.enabled = False
-		self.offTime = datetime.now()
+		self.offTime = datetime.now() 						 # starts off
+		self.onTime = datetime.now() - timedelta(seconds=60) # just needs to be before offTime
 		self.pin = pin
 
 class Configuration(object):
@@ -37,12 +38,16 @@ class Configuration(object):
 		else:
 			self.relays[idPos].offTime = datetime.now()
 
-	def setRelayTimer(self, idPos, duration):
-		self.relays[idPos].offTime = datetime.now() + timedelta(seconds=duration)
+	def setRelayTimer(self, idPos, duration, delay=0):
+		self.relays[idPos].onTime = datetime.now() + timedelta(seconds=delay)
+		self.relays[idPos].offTime = datetime.now() + timedelta(seconds=duration) + timedelta(seconds=delay)
 
 
 	def getRelayOffTime(self, idPos):
 		return self.relays[idPos].offTime
+
+	def getRelayOnTime(self, idPos):
+		return self.relays[idPos].onTime
 
 	def getRelay(self, idPos):
 		return self.relays[idPos]
