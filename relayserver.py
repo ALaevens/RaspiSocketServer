@@ -59,6 +59,7 @@ def getTimeString():
 
 def relayHandler(idPos):
     pin = config.getRelay(idPos).pin
+    GPIO.setmode(GPIO.BOARD)
 
     while True:
         timeOff = config.getRelayOffTime(idPos)
