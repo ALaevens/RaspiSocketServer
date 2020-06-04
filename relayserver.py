@@ -8,24 +8,78 @@ import sys
 import LCD1602
 import RPi.GPIO as GPIO
 import time
+import os
 from w1thermsensor import W1ThermSensor
 from classes import *
 from datetime import datetime
 from datetime import timedelta
 from database import *
+from pathlib import Path
 
 DEF_PORT = 5050
 DEF_HOST = socket.gethostbyname(socket.gethostname())
 DEF_ADDR = (DEF_HOST, DEF_PORT)
-DOLOGGING = True
 
 tSensor = None
 
 config = None
 
+class Logging():
+    logDirectory = "logs"
+    logFile = "latest.log"
+
+    def __init__(self, doPrintLogs, doFileLogs, printLevel = -1, fileLevel = -1):
+        self.doPrintLogs = doPrintLogs
+        self.doFileLogs = doFileLogs
+        self.printLevel = printLevel
+        self.fileLevel = fileLevel
+
+        self.fileHandle = None
+        self.lastLogDate = (datetime.now() - timedelta(days=1)).date() # needs to be in the past on init
+
+        if self.doFileLogs:
+            script = Path(sys.argv[0])
+            cwd = script.parts[:-1]
+
+            fullLogPath = os.path.join(*cwd, self.logDirectory)
+            if not os.path.exists(fullLogPath):
+                os.mkdir(fullLogPath)
+
+            self.fileHandle = open(os.path.join(fullLogPath, self.logFile), "a")
+
+    def __del__(self):
+        if self.fileHandle != None:
+            print("closing logger")
+            self.fileHandle.close()
+
+
+    def printLog(self, text, level = 0):
+        if self.doPrintLogs and (level <= self.printLevel or self.printLevel == -1):
+            print(text)
+
+    def fileLog(self, text, level = 0):
+        if self.doFileLogs and self.fileHandle != None and (level <= self.fileLevel or self.fileLevel == -1):
+            self.fileHandle.write(text+"\n")
+            self.fileHandle.flush()
+
+    def log(self, text, level = 0):
+        today = datetime.now().date()
+        if today > self.lastLogDate:
+            dateString = today.strftime("%b %d, %Y")
+            toLog = f"{'='*20} [{dateString}] {'='*20}"
+            self.printLog(toLog)
+            self.fileLog(toLog)
+
+            self.lastLogDate = today
+
+        self.printLog(text, level)
+        self.fileLog(text, level)
+
+logging = Logging(True, True, -1, 1)
+
 def configure():
     global config
-    config = Configuration()
+    config = Configuration(1)
     config.addRelay(Relay(11, "Red"))
     config.addRelay(Relay(12, "Green"))
     config.addRelay(Relay(13, "Blue"))
@@ -36,10 +90,6 @@ def startRelayThreads():
         thread = threading.Thread(target=relayHandler,args=(i,))
         thread.daemon = True
         thread.start()
-
-def log(text):
-    if DOLOGGING:
-        print(text)
 
 def recvString(conn):
     header = conn.recv(2)
@@ -62,38 +112,44 @@ def relayHandler(idPos):
     GPIO.setmode(GPIO.BOARD)
 
     while True:
-        timeOff = config.getRelayOffTime(idPos)
-        timeOn = config.getRelayOnTime(idPos)
-        timeCurrent = datetime.now()
+        try:
+            timeOff = config.getRelayOffTime(idPos)
+            timeOn = config.getRelayOnTime(idPos)
+            timeCurrent = datetime.now()
 
-        if timeOff == -1:               # manual On
-            GPIO.output(pin, GPIO.LOW)
-        elif timeCurrent >= timeOff:
-            GPIO.output(pin, GPIO.HIGH)
-        elif timeCurrent < timeOff and timeCurrent >= timeOn:
-            GPIO.output(pin, GPIO.LOW)
-        else:
-            GPIO.output(pin, GPIO.HIGH)
+            if timeOff == -1:               # manual On
+                GPIO.output(pin, GPIO.LOW)
+            elif timeCurrent >= timeOff:
+                GPIO.output(pin, GPIO.HIGH)
+            elif timeCurrent < timeOff and timeCurrent >= timeOn:
+                GPIO.output(pin, GPIO.LOW)
+            else:
+                GPIO.output(pin, GPIO.HIGH)
 
-        time.sleep(0.2)
+            time.sleep(0.2)
+
+        except:
+            print("Stopping relay thread")
+            break
 
 def clientHandler(conn, addr):
     threadName = threading.currentThread().getName()
-    log(f"[{threadName} : {getTimeString()}] Connection from: {addr}")
+    logging.log(f"[{threadName} : {getTimeString()}] Connection from: {addr}", 1)
     
     while True:
         command = recvString(conn)
-        log(f"[{threadName} : {getTimeString()}] COMMAND: '{command}'")
+        logging.log(f"[{threadName} : {getTimeString()}] COMMAND: '{command}'", 1)
 
         if command == "DISCONNECT":
-            log(f"[{threadName} : {getTimeString()}] Close...")
+            logging.log(f"[{threadName} : {getTimeString()}] Close...", 2)
             conn.close()
             break
 
         elif command == "SETRELAY":
             relayNum = int(recvString(conn))
             setTo = int(recvString(conn))
-            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} Set to: {setTo}")
+            relay = config.getRelay(relayNum)
+            logging.log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} [{relay.name}] Set to: {setTo}", 2)
 
             config.setRelayState(relayNum, setTo)
 
@@ -101,14 +157,25 @@ def clientHandler(conn, addr):
             relayNum = int(recvString(conn))
             duration = int(recvString(conn))
             delay = int(recvString(conn))
-            log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} On for: {duration} seconds after {delay} seconds")
+            logging.log(f"[{threadName} : {getTimeString()}] \tRelay #{relayNum} On for: {duration} seconds after {delay} seconds", 2)
 
             config.setRelayTimer(relayNum, duration, delay)
 
         elif command == "GETTEMP":
             temp = tSensor.get_temperature()
-            log(f"[{threadName} : {getTimeString()}] \tCurrent Temperature: {temp}°C")
+            logging.log(f"[{threadName} : {getTimeString()}] \tCurrent Temperature: {temp}°C", 2)
             SEND(conn, str(temp))
+
+        elif command == "GETREVISION":
+            SEND(conn, str(config.revision))
+
+        elif command == "GETCONFIG":
+            relayLabels = config.getNames()
+            SEND(conn, str(len(relayLabels)))
+
+            for label in relayLabels:
+                SEND(conn, label)
+
 
         elif command == "":
             conn.close()
@@ -126,7 +193,7 @@ def cleanGPIO(pins):
 
 def start(ADDR):
     HOST, PORT = ADDR
-    log(f"[MAIN] Hosting on: {HOST}:{PORT}")
+    logging.log(f"[MAIN : {getTimeString()}] Hosting on: {HOST}:{PORT}")
 
     configure()
     initGPIO(config.getPins())
@@ -136,23 +203,23 @@ def start(ADDR):
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(ADDR)
 
-    log("[MAIN] Listening....")
+    logging.log(f"[MAIN : {getTimeString()}] Listening....")
     s.listen()
     while True:
         try:
             conn, addr = s.accept()
             count, country = updateConnections(addr[0])
-            log(f"[MAIN] New Connection: {addr[0]}, from {country}, has connected {count} time(s)")
+            logging.log(f"[MAIN : {getTimeString()}] New Connection: {addr[0]}, from {country}, has connected {count} time(s)")
 
             if country in ["Local", "Canada"]:
-                log("[Main] Accepting Connection")
+                logging.log(f"[MAIN : {getTimeString()}] Accepting Connection")
                 thread = threading.Thread(target=clientHandler, args=(conn, addr))
                 thread.start()
             else:
-                log("[MAIN] Refusing connection")
+                logging.log(f"[MAIN : {getTimeString()}] Refusing connection")
                 conn.close()
         except KeyboardInterrupt:
-            log("[MAIN] Interrupted...Closing")
+            logging.log(f"[MAIN : {getTimeString()}] Interrupted...Closing")
             s.close()
             cleanGPIO(config.getPins())
             break
@@ -163,7 +230,9 @@ if __name__ == "__main__":
         HOST, PORT = sys.argv[1].split(":")
         HOST = socket.gethostbyname(HOST)
         PORT = int(PORT)
-        log(f"Using custom Host:Port: {HOST}:{PORT}")
+        logging.log(f"Using custom Host:Port: {HOST}:{PORT}")
         start((HOST, PORT))
     else:
         start(DEF_ADDR)
+
+    del logging

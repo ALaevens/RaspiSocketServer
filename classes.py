@@ -11,8 +11,9 @@ class Relay(object):
 		self.pin = pin
 
 class Configuration(object):
-	def __init__(self):
+	def __init__(self, revision):
 		self.relays = []
+		self.revision = revision
 
 	def addRelay(self, relay):
 		for i in range(len(self.relays)):
@@ -29,6 +30,13 @@ class Configuration(object):
 			pins.append(relay.pin)
 
 		return tuple(pins)
+
+	def getNames(self):
+		names = []
+		for relay in self.relays:
+			names.append(relay.name)
+
+		return names
 
 	def setRelayState(self, idPos, state):
 		self.relays[idPos].enabled = state
