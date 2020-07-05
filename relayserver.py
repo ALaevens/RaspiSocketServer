@@ -80,10 +80,10 @@ logging = Logging(True, True, -1, 1)
 def configure():
     global config
     config = Configuration(1)
-    config.addRelay(Relay(11, "Red"))
-    config.addRelay(Relay(12, "Green"))
-    config.addRelay(Relay(13, "Blue"))
-    config.addRelay(Relay(15, "Yellow"))
+    config.addRelay(Relay(11, "Red", True))
+    config.addRelay(Relay(12, "Green", True))
+    config.addRelay(Relay(13, "Blue", True))
+    config.addRelay(Relay(15, "Yellow", True))
 
 def startRelayThreads():
     for i in range(len(config.getPins())):
@@ -108,8 +108,13 @@ def getTimeString():
     return str(current_time)
 
 def relayHandler(idPos):
-    pin = config.getRelay(idPos).pin
+    relay = config.getRelay(idPos)
+    pin = relay.pin
+    SIG_ON = relay.SIG_ENABLED
+    SIG_OFF = relay.SIG_DISABLED
     GPIO.setmode(GPIO.BOARD)
+
+    print("ON:", SIG_ON, "OFF:", SIG_OFF)
 
     while True:
         try:
@@ -118,13 +123,17 @@ def relayHandler(idPos):
             timeCurrent = datetime.now()
 
             if timeOff == -1:               # manual On
-                GPIO.output(pin, GPIO.LOW)
+                #GPIO.output(pin, GPIO.LOW)
+                GPIO.output(pin, SIG_ON)
             elif timeCurrent >= timeOff:
-                GPIO.output(pin, GPIO.HIGH)
+                #GPIO.output(pin, GPIO.HIGH)
+                GPIO.output(pin, SIG_OFF)
             elif timeCurrent < timeOff and timeCurrent >= timeOn:
-                GPIO.output(pin, GPIO.LOW)
+                #GPIO.output(pin, GPIO.LOW)
+                GPIO.output(pin, SIG_ON)
             else:
-                GPIO.output(pin, GPIO.HIGH)
+                #GPIO.output(pin, GPIO.HIGH)
+                GPIO.output(pin, SIG_OFF)
 
             time.sleep(0.2)
 

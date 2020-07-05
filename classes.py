@@ -3,12 +3,19 @@ from datetime import datetime
 from datetime import timedelta
 
 class Relay(object):
-	def __init__(self, pin, name):
+	def __init__(self, pin, name, invertSignals = False):
 		self.name = name
 		self.enabled = False
 		self.offTime = datetime.now() 						 # starts off
 		self.onTime = datetime.now() - timedelta(seconds=60) # just needs to be before offTime
 		self.pin = pin
+
+		if invertSignals:
+			self.SIG_ENABLED = 0
+			self.SIG_DISABLED = 1
+		else:
+			self.SIG_ENABLED = 1
+			self.SIG_DISABLED = 0
 
 class Configuration(object):
 	def __init__(self, revision):

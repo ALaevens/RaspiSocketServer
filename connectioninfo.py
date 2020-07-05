@@ -15,7 +15,7 @@ def makeGraph(conn):
 	nameLength = max(nameLength, len(titles[0]))
 	barLength = int(os.popen('stty size', 'r').read().split()[1]) - nameLength - 2
 
-	total = cur.execute("select sum(count) from addresses").fetchone()[0]
+	total = cur.execute('select sum(count) from addresses').fetchone()[0]
 	countryMax = 0
 
 	SQL = 'select country, sum(count) from addresses group by country order by sum(count) desc'
@@ -38,6 +38,8 @@ def makeGraph(conn):
 			print(f"{country:>{nameLength}}|"+colored(f"{' '*length}", "white", bars[i], attrs=['bold', 'underline'])+f"⎢{count}")
 
 		i = (i+1)%len(bars)
+
+	print(f"\nTotal Recorded Connections: {total}")
 
 def makeTable(conn, country):
 	cur = conn.cursor()
