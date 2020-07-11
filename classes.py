@@ -2,12 +2,13 @@ import RPi.GPIO as GPIO
 from datetime import datetime
 from datetime import timedelta
 
+
 class Relay(object):
-	def __init__(self, pin, name, invertSignals = False):
+	def __init__(self, pin, name, invertSignals=False):
 		self.name = name
 		self.enabled = False
-		self.offTime = datetime.now() 						 # starts off
-		self.onTime = datetime.now() - timedelta(seconds=60) # just needs to be before offTime
+		self.offTime = datetime.now() 						  # starts off
+		self.onTime = datetime.now() - timedelta(seconds=60)  # just needs to be before offTime
 		self.pin = pin
 
 		if invertSignals:
@@ -16,6 +17,7 @@ class Relay(object):
 		else:
 			self.SIG_ENABLED = 1
 			self.SIG_DISABLED = 0
+
 
 class Configuration(object):
 	def __init__(self, revision):
@@ -48,7 +50,7 @@ class Configuration(object):
 	def setRelayState(self, idPos, state):
 		self.relays[idPos].enabled = state
 
-		if state == True:
+		if state:
 			self.relays[idPos].offTime = -1
 		else:
 			self.relays[idPos].offTime = datetime.now()
@@ -56,7 +58,6 @@ class Configuration(object):
 	def setRelayTimer(self, idPos, duration, delay=0):
 		self.relays[idPos].onTime = datetime.now() + timedelta(seconds=delay)
 		self.relays[idPos].offTime = datetime.now() + timedelta(seconds=duration) + timedelta(seconds=delay)
-
 
 	def getRelayOffTime(self, idPos):
 		return self.relays[idPos].offTime

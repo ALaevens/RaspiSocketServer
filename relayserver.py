@@ -5,7 +5,6 @@
 import socket
 import threading
 import sys
-import LCD1602
 import RPi.GPIO as GPIO
 import time
 import os
@@ -24,6 +23,7 @@ DEF_ADDR = (DEF_HOST, DEF_PORT)
 tSensor = None
 
 config = None
+
 
 class Logging():
     logDirectory = "logs"
@@ -49,17 +49,16 @@ class Logging():
             self.fileHandle = open(os.path.join(fullLogPath, self.logFile), "a")
 
     def __del__(self):
-        if self.fileHandle != None:
+        if self.fileHandle is not None:
             print("closing logger")
             self.fileHandle.close()
 
-
-    def printLog(self, text, level = 0):
+    def printLog(self, text, level=0):
         if self.doPrintLogs and (level <= self.printLevel or self.printLevel == -1):
             print(text)
 
-    def fileLog(self, text, level = 0):
-        if self.doFileLogs and self.fileHandle != None and (level <= self.fileLevel or self.fileLevel == -1):
+    def fileLog(self, text, level=0):
+        if self.doFileLogs and self.fileHandle is not None and (level <= self.fileLevel or self.fileLevel == -1):
             self.fileHandle.write(text+"\n")
             self.fileHandle.flush()
 
@@ -76,7 +75,9 @@ class Logging():
         self.printLog(text, level)
         self.fileLog(text, level)
 
+
 logging = Logging(True, True, -1, 1)
+
 
 def checkOnline():
     try:
@@ -88,13 +89,12 @@ def checkOnline():
     except:
         return False
 
+
 def configure():
     global config
     config = Configuration(1)
     config.addRelay(Relay(11, "Main Sprinkler", True))
-    #config.addRelay(Relay(12, "Green", True))
-    #config.addRelay(Relay(13, "Blue", True))
-    #config.addRelay(Relay(15, "Yellow", True))
+
 
 def startRelayThreads():
     for i in range(len(config.getPins())):
@@ -102,21 +102,25 @@ def startRelayThreads():
         thread.daemon = True
         thread.start()
 
+
 def recvString(conn):
     header = conn.recv(2)
     msgLen = int.from_bytes(header, byteorder='big')
     msg = conn.recv(msgLen).decode('utf-8')
     return msg
 
+
 def SEND(conn, msg):
     toSend = msg.encode("utf-8")
     conn.send(len(toSend).to_bytes(2, byteorder='big'))
     conn.send(toSend)
 
+
 def getTimeString():
     t = datetime.now()
     current_time = t.strftime("%I:%M %p")
     return str(current_time)
+
 
 def relayHandler(idPos):
     relay = config.getRelay(idPos)
@@ -145,6 +149,7 @@ def relayHandler(idPos):
         except:
             print("Stopping relay thread")
             break
+
 
 def clientHandler(conn, addr):
     threadName = threading.currentThread().getName()
@@ -190,9 +195,9 @@ def clientHandler(conn, addr):
             for label in relayLabels:
                 SEND(conn, label)
 
-
         elif command == "":
             conn.close()
+
 
 def initGPIO(pins):
     global tSensor
@@ -201,9 +206,11 @@ def initGPIO(pins):
     GPIO.output(pins, GPIO.HIGH)
     tSensor = W1ThermSensor()  
 
+
 def cleanGPIO(pins):
     GPIO.output(pins, GPIO.HIGH)
     GPIO.cleanup()
+
 
 def start(ADDR):
     HOST, PORT = ADDR
