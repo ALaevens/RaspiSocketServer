@@ -3,7 +3,7 @@ Socket server for use with an in development android app to do some home automat
 This server only intended to be run off of a RaspberryPi
 
 Installing:
-    - Do automated initial install with 'sudo install.sh'
+    - Do automated initial install with 'chmod +x install.sh && sudo ./install.sh'
 
     - To launch server from startup:
         runuser -l [USER] -c 'screen -dmS relayServer python3 [FULL RELAYSERVER.PY PATH]'

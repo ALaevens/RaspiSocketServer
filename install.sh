@@ -1,17 +1,18 @@
-#1/bin/bash
+#!/bin/bash
 
 declare -a pythonDependencies=(termcolor W1ThermSensor requests ipinfo RPi.GPIO)
 declare -a aptDependencies=(python3-pip sqlite3 screen)
 
 
-echo "Install apt dependencies"
+echo "\n\nInstall apt dependencies"
 for aptDep in "${aptDependencies[@]}"; do
    apt-get -y install $aptDep
 done
 
-echo "Install python dependencies"
+echo "\n\nInstall python dependencies"
 for pyDep in "${pythonDependencies[@]}"; do
    python3 -m pip install $pyDep
 done
 
+echo "\n\nSetup DB"
 sqlite3 connections.db < createdb.sql
