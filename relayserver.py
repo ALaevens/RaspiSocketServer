@@ -9,6 +9,7 @@ import LCD1602
 import RPi.GPIO as GPIO
 import time
 import os
+import requests
 from w1thermsensor import W1ThermSensor
 from classes import *
 from datetime import datetime
@@ -77,13 +78,23 @@ class Logging():
 
 logging = Logging(True, True, -1, 1)
 
+def checkOnline():
+    try:
+        req = requests.get('http://clients3.google.com/generate_204')
+        if req.status_code == 204:
+            return True
+        else:
+            return False
+    except:
+        return False
+
 def configure():
     global config
     config = Configuration(1)
-    config.addRelay(Relay(11, "Red", True))
-    config.addRelay(Relay(12, "Green", True))
-    config.addRelay(Relay(13, "Blue", True))
-    config.addRelay(Relay(15, "Yellow", True))
+    config.addRelay(Relay(11, "Main Sprinkler", True))
+    #config.addRelay(Relay(12, "Green", True))
+    #config.addRelay(Relay(13, "Blue", True))
+    #config.addRelay(Relay(15, "Yellow", True))
 
 def startRelayThreads():
     for i in range(len(config.getPins())):
@@ -114,8 +125,6 @@ def relayHandler(idPos):
     SIG_OFF = relay.SIG_DISABLED
     GPIO.setmode(GPIO.BOARD)
 
-    print("ON:", SIG_ON, "OFF:", SIG_OFF)
-
     while True:
         try:
             timeOff = config.getRelayOffTime(idPos)
@@ -123,16 +132,12 @@ def relayHandler(idPos):
             timeCurrent = datetime.now()
 
             if timeOff == -1:               # manual On
-                #GPIO.output(pin, GPIO.LOW)
                 GPIO.output(pin, SIG_ON)
             elif timeCurrent >= timeOff:
-                #GPIO.output(pin, GPIO.HIGH)
                 GPIO.output(pin, SIG_OFF)
             elif timeCurrent < timeOff and timeCurrent >= timeOn:
-                #GPIO.output(pin, GPIO.LOW)
                 GPIO.output(pin, SIG_ON)
             else:
-                #GPIO.output(pin, GPIO.HIGH)
                 GPIO.output(pin, SIG_OFF)
 
             time.sleep(0.2)
@@ -235,6 +240,12 @@ def start(ADDR):
         
 
 if __name__ == "__main__":
+    while not checkOnline():
+        logging.log("Offline... Retrying in 15 seconds")
+        time.sleep(15)
+
+    logging.log("Online! Starting...")
+
     if len(sys.argv) == 2:
         HOST, PORT = sys.argv[1].split(":")
         HOST = socket.gethostbyname(HOST)
