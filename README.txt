@@ -1,5 +1,7 @@
 Socket server for use with an in development android app to do some home automation tasks.
 
+Android App Repo: https://github.com/ALaevens/RelayClient
+
 This server only intended to be run off of a RaspberryPi
 
 Installing:
